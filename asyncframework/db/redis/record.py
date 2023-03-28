@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 from typing import Union, Iterable, Optional, List, Generic, TypeVar, Tuple, Set
-from asyncframework.log import getLogger
+from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
 from .record_field import RedisRecordField
@@ -16,7 +16,7 @@ T = TypeVar('T', bound=PacketBase)
 class RedisRecord(RedisRecordBase, Generic[T]):
     """Redis record class
     """
-    log = getLogger('typed_collection')
+    log = get_logger('typed_collection')
 
     def __init__(self, connection: RedisConnection, record_info: RedisRecordField) -> None:
         """Constructor

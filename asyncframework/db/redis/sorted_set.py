@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 from typing import Union, List, Any, Tuple, Optional
 import asyncio
-from asyncframework.log import getLogger
+from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
 from .sorted_set_field import RedisSortedSetField, RedisSortedSetData
@@ -17,7 +17,7 @@ DataType = Union[RedisSortedSetData, List[RedisSortedSetData]]
 class RedisSortedSet(RedisRecordBase):
     """Redis set
     """
-    log = getLogger('redis_set')
+    log = get_logger('redis_set')
 
     def __init__(self, connection: RedisConnection, set_info: RedisSortedSetField):
         """Constructor

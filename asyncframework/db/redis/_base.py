@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, List
-from asyncframework.log import getLogger
+from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
 
@@ -55,7 +55,7 @@ class RedisRecordFieldBase():
 T = TypeVar('T', bound=RedisRecordFieldBase)
 
 class RedisRecordBase(Generic[T]):
-    log = getLogger('typed_collection')
+    log = get_logger('typed_collection')
     _connection: RedisConnection
     _record_info: T
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from typing import Optional, Any, List, Type
-from aioredis import ConnectionPool, Redis, exceptions
+from typing import Optional
+from redis.asyncio import ConnectionPool, Redis
 from urllib.parse import quote_plus
 from asyncframework.app.service import Service
 

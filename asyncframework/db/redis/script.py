@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import Any
-from aioredis.exceptions import NoScriptError
+from redis.exceptions import NoScriptError
 from .connection import RedisConnection
 from .script_field import RedisScriptField
 from ._base import RedisRecordBase

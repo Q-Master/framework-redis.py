@@ -2,7 +2,7 @@
 import asyncio
 from typing import Dict, Union, Iterable, List, Type, Hashable, Tuple
 from asyncframework.app.service import Service
-from asyncframework.log import getLogger
+from asyncframework.log.log import get_logger
 from .connection import RedisConnection
 from .lock_field import RedisLockField
 from .record_field import RedisRecordField
@@ -46,7 +46,7 @@ class ShardObject():
 
 class RedisDb(Service, metaclass=RedisDbMeta):
     __records__: Dict[str, Tuple[RedisRecordFieldBase, RedisRecordBase]] = {}
-    log = getLogger('typeddb')
+    log = get_logger('typeddb')
 
     __shards: List[RedisConnection] = []
     __items: List[ShardObject] = []

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
-from asyncframework.log import getLogger
+from asyncframework.log.log import get_logger
 from .script_field import RedisScriptField, RedisScriptData
 from .script import RedisScript
 from .connection import RedisConnection
@@ -11,7 +11,7 @@ from ._base import RedisRecordBase
 __all__ = ['RedisLock', 'RedisLockError', 'RedisLockInvalidTimeoutError']
 
 
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class UnlockScript(RedisScriptData):
