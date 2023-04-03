@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 import asyncio
 from typing import Dict, Union, Iterable, List, Type, Hashable, Tuple
+from abc import ABCMeta
 from asyncframework.app.service import Service
 from asyncframework.log.log import get_logger
 from .connection import RedisConnection
@@ -22,7 +23,7 @@ config_type = Union[Iterable[Union[str, dict]], Union[str, dict]]
 key_type = Union[bytes, int]
 
 
-class RedisDbMeta(type):
+class RedisDbMeta(ABCMeta):
     def __new__(cls, name, bases, namespace):
         records = {}
         for name, value in list(namespace.items()):
