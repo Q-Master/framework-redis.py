@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 import asyncio
-from typing import Dict, Union, Iterable, List, Type, Hashable, Tuple
+from typing import Dict, Union, Sequence, List, Type, Hashable, Tuple
 from abc import ABCMeta
 from asyncframework.app.service import Service
 from asyncframework.log.log import get_logger
@@ -19,7 +19,7 @@ from ._base import RedisRecordFieldBase, RedisRecordBase
 __all__ = ['RedisDb']
 
 
-config_type = Union[Iterable[Union[str, dict]], Union[str, dict]]
+config_type = Union[Sequence[Union[str, dict]], Union[str, dict]]
 key_type = Union[bytes, int]
 
 
