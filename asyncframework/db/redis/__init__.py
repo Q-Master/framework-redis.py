@@ -9,7 +9,7 @@ from .script import *
 from .set_field import *
 from .set import *
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 
 __title__ = 'asyncframework-redis'
 __description__ = 'Async framework redis addon.'

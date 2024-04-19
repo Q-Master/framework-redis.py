@@ -84,6 +84,15 @@ class RedisSet(RedisRecordBase):
             data = [data, ]
         return await self._connection.srem(self._record_info.full_key(key), *data)
 
+    async def merge(self, dest: str, *sources: str) -> None:
+        """Merge sources and put them to destination
+
+        Args:
+            dest (str): destination key
+            sources(str): source keys
+        """
+        await self._connection.sunionstore(self._record_info.full_key(dest), *self._record_info.full_keys(sources))
+
     def _load(self, data: Union[Any, List[Any]]):
         if isinstance(self._record_info.record_type, PacketBase):
             if isinstance(data, (list, tuple)):
