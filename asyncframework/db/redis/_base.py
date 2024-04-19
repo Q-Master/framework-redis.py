@@ -34,7 +34,7 @@ class RedisRecordFieldBase():
         Returns:
             str: full key name including prefix if set
         """
-        return ':'.join((self.prefix, key)) if self.prefix else key
+        return ''.join((self.prefix, key)) if self.prefix else key
 
     def full_keys(self, keys: Iterable[str]) -> Generator:
         """Lazy generate full keys from keys
