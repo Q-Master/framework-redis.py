@@ -78,6 +78,16 @@ class RedisRecord(RedisRecordBase, Generic[T]):
         for k, v in storage:
             await self._connection.set(k, v, expire=self._record_info.expire, exist=exist)
 
+    async def delete(self, key: Union[Union[List[str], Tuple[str]], str]) -> None:
+        if isinstance(key, (list, tuple)):
+            to_delete = list(self._record_info.full_keys(key))
+        else:
+            to_delete = [self._record_info.full_key(key)]
+        await self._connection.unlink(*to_delete)
+
+    async def rename(self, src: str, dest: str) -> None:
+        await self._connection.rename(self._record_info.full_key(src), self._record_info.full_key(dest))
+
     async def _load(self, key) -> T:
         data = await self._connection.get(key)
         return self._record_info.record_type.load(data)
