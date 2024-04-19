@@ -54,7 +54,7 @@ class RedisSet(RedisRecordBase):
         data = await self._connection.spop(self._record_info.full_key(key))
         return self._load(data)
     
-    async def append(self, key: str, data: DataType):
+    async def append(self, key: str, data: DataType) -> int:
         """Append value to set
 
         Args:
@@ -65,20 +65,24 @@ class RedisSet(RedisRecordBase):
             data = [x.dumps() for x in data] if isinstance(data, (list, tuple)) else [data.dumps(),]
         elif not isinstance(data, (list, tuple)):
             data = [data, ]
-        await self._connection.sadd(self._record_info.full_key(key), *data)
+        result = await self._connection.sadd(self._record_info.full_key(key), *data)
+        return result
 
-    async def remove(self, key: str, data: Union[Any, List[Any]]):
+    async def remove(self, key: str, data: Union[Any, List[Any]]) -> int:
         """Remove data from set
 
         Args:
             key (str): set key
             data (Union[Any, List[Any]]): data to remove
+        
+        Returns:
+            bool: True if removed successfully else False
         """
         if isinstance(self._record_info.record_type, PacketBase):
             data = [x.dumps() for x in data] if isinstance(data, (list, tuple)) else [data.dumps(),]
         elif not isinstance(data, (list, tuple)):
             data = [data, ]
-        await self._connection.srem(self._record_info.full_key(key), *data)
+        return await self._connection.srem(self._record_info.full_key(key), *data)
 
     def _load(self, data: Union[Any, List[Any]]):
         if isinstance(self._record_info.record_type, PacketBase):
