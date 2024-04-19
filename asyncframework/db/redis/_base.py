@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, List
+from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, List, Union, Tuple
 from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
@@ -69,8 +69,16 @@ class RedisRecordBase(Generic[T]):
     async def load(self, key: str) -> List[Any]:
         return []
 
-    async def load_one(self, key: str) -> Any:
-        return None
-
     async def store(self, key, data, upsert=True):
         pass
+
+    async def delete(self, key: Union[Union[List[str], Tuple[str]], str]) -> int:
+        if isinstance(key, (list, tuple)):
+            to_delete = list(self._record_info.full_keys(key))
+        else:
+            to_delete = [self._record_info.full_key(key)]
+        return await self._connection.unlink(*to_delete)
+
+    async def rename(self, src: str, dest: str) -> None:
+        await self._connection.rename(self._record_info.full_key(src), self._record_info.full_key(dest))
+
