@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from .database import *
 from .connection import *
 from .lock_field import *
 from .lock import *
@@ -8,8 +9,10 @@ from .script_field import *
 from .script import *
 from .set_field import *
 from .set import *
+from .sorted_set import *
+from .sorted_set_field import *
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 __title__ = 'asyncframework-redis'
 __description__ = 'Async framework redis addon.'
