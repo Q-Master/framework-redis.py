@@ -16,26 +16,30 @@ logger = get_logger(__name__)
 
 class UnlockScript(RedisScriptData):
     code = """
-    if redis.call("get", KEYS[1]) ~= ARGV[1] then
-        return 1
-    else
-        redis.call("del", KEYS[2])
-        redis.call("lpush", KEYS[2], 1)
-        redis.call("del", KEYS[1])
-        return 0
-    end
+if redis.call("get", KEYS[1]) ~= ARGV[1] then
+    return 1
+else
+    redis.call("del", KEYS[2])
+    redis.call("lpush", KEYS[2], 1)
+    redis.call("del", KEYS[1])
+    return 0
+end
 """
 
 
 class ResetScript(RedisScriptData):
     code = """
-    redis.call('del', KEYS[2])
-    redis.call('lpush', KEYS[2], 1)
-    return redis.call('del', KEYS[1])
+redis.call('del', KEYS[2])
+redis.call('lpush', KEYS[2], 1)
+return redis.call('del', KEYS[1])
 """
 
 
 class RedisLockError(RuntimeError):
+    pass
+
+
+class RedisLockTimeoutError(RedisLockError):
     pass
 
 
@@ -67,12 +71,16 @@ class RedisLock(RedisRecordBase):
             self._expire: int = expire
             self._unlock_script = RedisScript(connection, RedisScriptField(UnlockScript()))
             self._reset_script = RedisScript(connection, RedisScriptField(ResetScript()))
+            self._acquired = False
+            self._timed_out = False
         
         async def reset(self):
             """Forcibly deletes the lock. Use this with care.
             """
             await self._reset_script(self._name, self._signal)
             await self._delete_signal()
+            self._timed_out = False
+            self._acquired = False
 
         async def is_owner(self) -> bool:
             """Check if owner.
@@ -119,25 +127,25 @@ class RedisLock(RedisRecordBase):
 
             busy = True
             blpop_timeout = timeout or self._expire or 0
-            timed_out = False
+            self._timed_out = False
             while busy:
                 busy = not await self._client.set(self._name, self._id, exist=self._client.SET_IF_NOT_EXIST, expire=self._expire)
                 if busy:
-                    if timed_out:
-                        return False
+                    if self._timed_out:
+                        raise RedisLockTimeoutError(f'Lock is timed out {self._name}')
                     elif blocking:
-                        timed_out = not await self._client.blpop(self._signal, blpop_timeout) and timeout != 0
+                        self._timed_out = not await self._client.blpop(self._signal, blpop_timeout) and timeout != 0
                     else:
                         logger.debug(f'Failed to get {self._name}')
-                        return False
+                        raise RedisLockError(f'Failed to get {self._name}')
+                else:
+                    self._acquired = True
 
             logger.debug(f'Locked {self._name}')
             return True
 
         async def __aenter__(self):
-            acquired = await self.acquire(blocking=True)
-            if not acquired:
-                raise RedisLockError(f'Failed to ackquire lock {self._name}')
+            await self.acquire(blocking=True)
 
         async def __aexit__(self, *args):
             await self.release()
@@ -148,10 +156,14 @@ class RedisLock(RedisRecordBase):
             Raises:
                 RedisLockError: if already expired or not been locked or error while unlocking
             """
+            self._acquired = False
             logger.debug(f'Unlocking {self._name}')
+            if self._timed_out:
+                await self._delete_signal()
+                return
             error = await self._unlock_script(self._name, self._signal, self._id)
             if error == 1:
-                raise RedisLockError(f'Lock {self._name} is not acquired or it already expired')
+                raise RedisLockError(f'Lock {self._name} is not acquired')
             elif error:
                 raise RedisLockError(f'Unsupported error code {error} from UNLOCK script')
             else:
