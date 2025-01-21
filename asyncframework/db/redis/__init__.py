@@ -12,7 +12,7 @@ from .set import *
 from .sorted_set import *
 from .sorted_set_field import *
 
-__version__ = '0.2.5'
+__version__ = '0.2.6'
 
 __title__ = 'asyncframework-redis'
 __description__ = 'Async framework redis addon.'

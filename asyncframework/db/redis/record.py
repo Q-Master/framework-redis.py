@@ -77,7 +77,9 @@ class RedisRecord(RedisRecordBase, Generic[T]):
         for k, v in storage:
             await self._connection.set(k, v, expire=self._record_info.expire, exist=exist)
 
-    async def _load(self, key) -> T:
+    async def _load(self, key) -> Optional[T]:
         assert issubclass(self._record_info.record_type, PacketBase)
         data = await self._connection.get(key)
-        return self._record_info.record_type.load(data)
+        if data:
+            return self._record_info.record_type.load(data)
+        return None
