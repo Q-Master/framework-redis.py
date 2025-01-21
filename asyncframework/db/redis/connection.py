@@ -61,7 +61,7 @@ class RedisConnection(Service):
         return cls(uri)
 
     async def __start__(self, *args, **kwargs):
-        self.__redis_pool = ConnectionPool.from_url(self.__uri, decode_responses=True, loop=self.ioloop)
+        self.__redis_pool = ConnectionPool.from_url(self.__uri, decode_responses=True)
         self.__redis_connection = Redis(connection_pool=self.__redis_pool)
 
     async def __stop__(self):
