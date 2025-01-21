@@ -9,10 +9,12 @@ from .lock_field import RedisLockField
 from .record_field import RedisRecordField
 from .script_field import RedisScriptField
 from .set_field import RedisSetField
+from .sorted_set_field import RedisSortedSetField
 from .lock import RedisLock
 from .record import RedisRecord
 from .script import RedisScript
 from .set import RedisSet
+from .sorted_set import RedisSortedSet
 from ._base import RedisRecordFieldBase, RedisRecordBase
 
 
@@ -36,6 +38,8 @@ class RedisDbMeta(ABCMeta):
                     records[name] = (value, RedisScript)
                 elif isinstance(value, RedisSetField):
                     records[name] = (value, RedisSet)
+                elif isinstance(value, RedisSortedSetField):
+                    records[name] = (value, RedisSortedSet)
                 del namespace[name]
         namespace['__records__'] = records
         return super().__new__(cls, name, bases, namespace)
