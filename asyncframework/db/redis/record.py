@@ -81,5 +81,5 @@ class RedisRecord(RedisRecordBase, Generic[T]):
         assert issubclass(self._record_info.record_type, PacketBase)
         data = await self._connection.get(key)
         if data:
-            return self._record_info.record_type.load(data)
+            return self._record_info.record_type.loads(data)
         return None
