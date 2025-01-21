@@ -32,14 +32,14 @@ class RedisDbMeta(ABCMeta):
             if isinstance(value, RedisRecordFieldBase):
                 if isinstance(value, RedisLockField):
                     records[name] = (value, RedisLock)
-                elif isinstance(value, RedisRecordField):
-                    records[name] = (value, RedisRecord)
                 elif isinstance(value, RedisScriptField):
                     records[name] = (value, RedisScript)
                 elif isinstance(value, RedisSetField):
                     records[name] = (value, RedisSet)
                 elif isinstance(value, RedisSortedSetField):
                     records[name] = (value, RedisSortedSet)
+                elif isinstance(value, RedisRecordField):
+                    records[name] = (value, RedisRecord)
                 del namespace[name]
         namespace['__records__'] = records
         return super().__new__(cls, name, bases, namespace)
