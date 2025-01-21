@@ -26,7 +26,6 @@ class RedisRecord(RedisRecordBase, Generic[T]):
             record_info (RedisRecordField): the record additional info
         """
         super().__init__(connection, record_info)
-        assert issubclass(record_info.record_type, PacketBase)
 
     async def load(self, mask: str = '*', count: Optional[int] = None) -> List[T]:
         """Load elements from keys by mask
@@ -79,5 +78,6 @@ class RedisRecord(RedisRecordBase, Generic[T]):
             await self._connection.set(k, v, expire=self._record_info.expire, exist=exist)
 
     async def _load(self, key) -> T:
+        assert issubclass(self._record_info.record_type, PacketBase)
         data = await self._connection.get(key)
         return self._record_info.record_type.load(data)
