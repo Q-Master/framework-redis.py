@@ -10,13 +10,13 @@ __all__ = ['RedisRecordField']
 class RedisRecordField(RedisRecordFieldBase):
     """Redis record field
     """
-    def __init__(self, record_type: Union[Any, Type[PacketBase]], prefix: Optional[str] = None, expire: int = 0):
+    def __init__(self, record_type: Union[Any, Type[PacketBase]], prefix: Optional[str] = None, expire: Optional[int] = None):
         """Constructor
 
         Args:
             record_type (Type[PacketBase]): the packet type of the record value
             prefix (Optional[str], optional): record key prefix. Defaults to None.
-            expire (int, optional): expiration in seconds (0 - not expiring). Defaults to 0.
+            expire (int, optional): expiration in seconds (None - not expiring). Defaults to None.
         """
         super().__init__(prefix, expire)
         self.record_type: Union[Any, Type[PacketBase]] = record_type

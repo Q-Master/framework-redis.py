@@ -15,12 +15,12 @@ class RedisRecordFieldBase():
     expire: int = 0
     record_type: Type[PacketBase]
 
-    def __init__(self, prefix: Optional[str] = None, expire: int = 0):
+    def __init__(self, prefix: Optional[str] = None, expire: Optional[int] = None):
         """Constructor
 
         Args:
             prefix (Optional[str], optional): record key prefix. Defaults to None.
-            expire (int, optional): expiration in seconds (0 - not expiring). Defaults to 0.
+            expire (int, optional): expiration in seconds (None - not expiring). Defaults to None.
         """
         self.prefix = prefix
         self.expire = expire
