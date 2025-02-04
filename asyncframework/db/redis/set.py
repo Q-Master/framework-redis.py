@@ -13,7 +13,7 @@ __all__ = ['RedisSet']
 DataType = Union[Any, Union[List[Any], Tuple[Any]]]
 
 
-class RedisSet(RedisRecordBase):
+class RedisSet(RedisRecordBase[RedisSetField]):
     """Redis set
     """
     log = get_logger('redis_set')

@@ -13,7 +13,7 @@ __all__ = ['RedisRecord']
 T = TypeVar('T', bound=PacketBase)
 
 
-class RedisRecord(RedisRecordBase, Generic[T]):
+class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
     """Redis record class
     """
     log = get_logger('typed_collection')
@@ -61,7 +61,7 @@ class RedisRecord(RedisRecordBase, Generic[T]):
         if isinstance(key, (list, tuple)):
             if isinstance(data, PacketBase):
                 v = data.dumps()
-                storage = ((x, v) for x in key)
+                storage = ((x, v) for x in self._record_info.full_keys(key))
             elif isinstance(data, (list, tuple, set)):
                 if len(data) == len(key):
                     storage = zip(self._record_info.full_keys(key), (x.dumps() for x in data))
@@ -70,9 +70,9 @@ class RedisRecord(RedisRecordBase, Generic[T]):
                 
         else:
             if isinstance(data, PacketBase):
-                storage = ((key, data.dumps()), )
+                storage = ((self._record_info.full_key(key), data.dumps()), )
             else:
-                storage = ((key, [d.dumps() for d in data]),)
+                storage = ((self._record_info.full_key(key), [d.dumps() for d in data]),)
         if upsert:
             nx=None
             xx=None

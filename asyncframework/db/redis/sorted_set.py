@@ -14,7 +14,7 @@ __all__ = ['RedisSortedSet']
 DataType = Union[RedisSortedSetData, List[RedisSortedSetData]]
 
 
-class RedisSortedSet(RedisRecordBase):
+class RedisSortedSet(RedisRecordBase[RedisSortedSetField]):
     """Redis set
     """
     log = get_logger('redis_set')

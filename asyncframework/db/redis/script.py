@@ -9,7 +9,7 @@ from ._base import RedisRecordBase
 __all__ = ['RedisScript']
 
 
-class RedisScript(RedisRecordBase):
+class RedisScript(RedisRecordBase[RedisScriptField]):
     """The lua script class
     """
     def __init__(self, connection: RedisConnection, script_info: RedisScriptField) -> None:

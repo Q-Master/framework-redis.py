@@ -47,7 +47,7 @@ class RedisLockInvalidTimeoutError(RedisLockError):
     pass
 
 
-class RedisLock(RedisRecordBase):
+class RedisLock(RedisRecordBase[RedisLockField]):
     """Redis lock
     """
     class RealLock():
