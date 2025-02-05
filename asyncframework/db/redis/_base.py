@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, List, Union, Tuple
+import datetime
 from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
@@ -54,6 +55,7 @@ class RedisRecordFieldBase():
 
 T = TypeVar('T', bound=RedisRecordFieldBase)
 
+
 class RedisRecordBase(Generic[T]):
     log = get_logger('typed_collection')
     _connection: RedisConnection
@@ -82,3 +84,21 @@ class RedisRecordBase(Generic[T]):
     async def rename(self, src: str, dest: str) -> None:
         await self._connection.rename(self._record_info.full_key(src), self._record_info.full_key(dest))
 
+    async def exists(self, key: str) -> bool:
+        res = await self._connection.exists(self._record_info.full_key(key))
+        return res > 0
+
+    async def expire(self, key: str) -> bool:
+        res = await self._connection.expire(self._record_info.full_key(key), time=self._record_info.expire)
+        return res > 0
+
+    async def expire_at(self, key: str, when: int | datetime.datetime) -> bool:
+        res = await self._connection.expireat(self._record_info.full_key(key), when)
+        return res > 0
+
+    async def expire_time(self, key: str) -> int:
+        return await self._connection.expiretime(self._record_info.full_key(key))
+
+    async def copy(self, src: str, dest: str, replace: bool = False) -> bool:
+        res = await self._connection.copy(self._record_info.full_key(src), self._record_info.full_key(dest), replace=replace)
+        return res > 0
