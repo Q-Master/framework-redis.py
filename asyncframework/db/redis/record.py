@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-from typing import Union, Iterable, Optional, List, Generic, TypeVar, Tuple, Set
+from typing import Union, Iterable, Optional, List, Generic, TypeVar, Tuple, Any
 from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
@@ -10,10 +10,11 @@ from ._base import RedisRecordBase
 __all__ = ['RedisRecord']
 
 
-T = TypeVar('T', bound=PacketBase)
+_T = TypeVar('T')
+DataType = Union[_T, Iterable[_T]]
 
 
-class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
+class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
     """Redis record class
     """
     log = get_logger('typed_collection')
@@ -27,7 +28,7 @@ class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
         """
         super().__init__(connection, record_info)
 
-    async def load(self, mask: str = '*', count: Optional[int] = None) -> List[T]:
+    async def load(self, mask: str = '*', count: Optional[int] = None) -> List[_T]:
         """Load elements from keys by mask
 
         Args:
@@ -37,14 +38,14 @@ class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
         Returns:
             List[T]: loaded PacketBase instances of key values
         """
-        result: List[T] = []
+        result: List[_T] = []
         match = self._record_info.full_key(mask)
         async for key in self._connection.iscan(match=match, count=count):
-            obj: T = await self._load(key)
+            obj: _T = await self._load(key)
             result.append(obj)
         return result
 
-    async def load_one(self, key: str) -> T:
+    async def load_one(self, key: str) -> _T:
         """Load one value by key name
 
         Args:
@@ -56,23 +57,33 @@ class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
         match = self._record_info.full_key(key)
         return await self._load(match)
 
-    async def store(self, key: Union[Union[List[str], Tuple[str]], str], data: Union[Union[List[T], Tuple[T], Set[T]], T], upsert=True) -> None:
+    async def store(self, key: Union[List[str], Tuple[str], str], data: DataType, upsert=True) -> None:
+        """Store data to redis key
+
+        Args:
+            key (Union[List[str], Tuple[str], str]): keys to store (might be a list of keys)
+            data (DataType): data to store (might be either single data copied to all keys, or list of different data)
+            upsert (bool, optional): if we need to insert key if it is not exist. Defaults to True.
+
+        Raises:
+            AttributeError: raised if key and data are both iterables and their size differs
+        """
         storage: Iterable[tuple]
         if isinstance(key, (list, tuple)):
-            if isinstance(data, PacketBase):
-                v = data.dumps()
-                storage = ((x, v) for x in self._record_info.full_keys(key))
-            elif isinstance(data, (list, tuple, set)):
+            if isinstance(data, (list, tuple, set)):
                 if len(data) == len(key):
-                    storage = zip(self._record_info.full_keys(key), (x.dumps() for x in data))
+                    storage = zip(self._record_info.full_keys(key), (self._record_info.dump() for x in data))
                 else:
                     raise AttributeError(f'Length of key array ({len(key)}) is not the same as of data array ({len(key)})')
+            else:
+                v = self._record_info.dump(data)
+                storage = ((x, v) for x in self._record_info.full_keys(key))
                 
         else:
-            if isinstance(data, PacketBase):
-                storage = ((self._record_info.full_key(key), data.dumps()), )
+            if isinstance(data, (list, tuple, set)):
+                storage = ((self._record_info.full_key(key), [self._record_info.dump(d) for d in data]), )
             else:
-                storage = ((self._record_info.full_key(key), [d.dumps() for d in data]),)
+                storage = ((self._record_info.full_key(key), self._record_info.dump(data)), )
         if upsert:
             nx=None
             xx=None
@@ -82,9 +93,8 @@ class RedisRecord(RedisRecordBase[RedisRecordField], Generic[T]):
         for k, v in storage:
             await self._connection.set(k, v, ex=self._record_info.expire, nx=nx, xx=xx)
 
-    async def _load(self, key) -> Optional[T]:
-        assert issubclass(self._record_info.record_type, PacketBase)
+    async def _load(self, key) -> Optional[_T]:
         data = await self._connection.get(key)
         if data:
-            return self._record_info.record_type.loads(data)
+            return self._record_info.load(data)
         return None
