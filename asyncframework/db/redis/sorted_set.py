@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-from typing import Union, List, Any, Sequence, Optional
+from typing import Union, List, Any, Sequence, Optional, Literal, overload
 import asyncio
 from asyncframework.log.log import get_logger
 from packets import PacketBase
@@ -28,6 +28,13 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[T]]):
     def __getattr__(self, item):
         return getattr(self._connection, item)
 
+    @overload
+    async def load(self, key: str, start: int = 0, end: int = -1, desc: bool = False, withscores: Literal[True]=True) -> Sequence[RedisSortedSetData[T]]:...
+
+    @overload
+    async def load(self, key: str, start: int = 0, end: int = -1, desc: bool = False, withscores: Literal[False]=False) -> Sequence[T]:...
+
+
     async def load(self, key: str, start: int = 0, end: int = -1, desc: bool = False, withscores=True) -> Sequence[Union[RedisSortedSetData[T], T]]:
         """Load set
 
@@ -43,6 +50,12 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[T]]):
         else:
             return self._record_info.load(result)
     
+
+    @overload
+    async def range_by_score(self, key: str, min: float, max: float, start: Optional[int] = None, amount: Optional[int] = None, withscores: Literal[True] = True) -> Sequence[RedisSortedSetData[T]]: ...
+    @overload
+    async def range_by_score(self, key: str, min: float, max: float, start: Optional[int] = None, amount: Optional[int] = None, withscores: Literal[False] = False) -> Sequence[Union[RedisSortedSetData[T], T]]: ...
+
     async def range_by_score(self, key: str, min: float, max: float, start: Optional[int] = None, amount: Optional[int] = None, withscores=True) -> Sequence[Union[RedisSortedSetData[T], T]]:
         result = await self._connection.zrangebyscore(self._record_info.full_key(key), min, max, start, amount, withscores=withscores)
         if withscores:

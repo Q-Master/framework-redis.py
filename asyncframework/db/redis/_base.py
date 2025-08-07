@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, List, Union, Tuple
+from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, Sequence, Union
 import datetime
 from asyncframework.log.log import get_logger
 from packets import PacketBase
@@ -96,11 +96,11 @@ class RedisRecordBase(Generic[U]):
     def __getattr__(self, item):
         return getattr(self._connection, item)
 
-    async def delete(self, key: Union[Union[List[str], Tuple[str]], str]) -> int:
-        if isinstance(key, (list, tuple)):
-            to_delete = list(self._record_info.full_keys(key))
-        else:
+    async def delete(self, key: Union[Sequence[str], str]) -> int:
+        if isinstance(key, str):
             to_delete = [self._record_info.full_key(key)]
+        else:
+            to_delete = list(self._record_info.full_keys(key))
         return await self._connection.unlink(*to_delete)
 
     async def rename(self, src: str, dest: str) -> None:
