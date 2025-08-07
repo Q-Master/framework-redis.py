@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Union
+from typing import Union, Self
 from hashlib import sha1
 from ._base import RedisRecordFieldBase
 
@@ -22,7 +22,7 @@ class RedisScriptData(metaclass=ScriptDataMeta):
     code_sha1: str = ''
 
     @classmethod
-    def from_data(cls, script_data: str) -> type['RedisScriptData']:
+    def from_data(cls, script_data: str) -> Self:
         """Additional constructor.
         Will build the ScriptData object from already 
 
@@ -32,8 +32,10 @@ class RedisScriptData(metaclass=ScriptDataMeta):
         Returns:
             ScriptData: the built class
         """
-        namespace = {'code': script_data}
-        return type(cls.__name__, cls.__bases__, namespace)
+        data = cls()
+        data.code = script_data
+        data.code_sha1 = sha1(script_data.encode('utf-8')).hexdigest()
+        return data
 
 
 class RedisScriptField(RedisRecordFieldBase):
@@ -70,7 +72,7 @@ class RedisScriptField(RedisRecordFieldBase):
             with open(script_or_path, 'r') as f:
                 sd = f.read()
             if sd:
-                self._script_data = RedisScriptData.from_data(sd)()
+                self._script_data = RedisScriptData.from_data(sd)
 
     def clone(self) -> 'RedisScriptField':
         return RedisScriptField(self._script_data)

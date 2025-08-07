@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 import asyncio
-from typing import Dict, Union, Sequence, List, Type, Hashable, Tuple
+from typing import Dict, Union, Sequence, List, Hashable, Tuple
 from abc import ABCMeta
 from asyncframework.app.service import Service
 from asyncframework.log.log import get_logger
@@ -22,7 +22,7 @@ __all__ = ['RedisDb']
 
 
 config_type = Union[Sequence[Union[str, dict]], Union[str, dict]]
-key_type = Union[bytes, int]
+key_type = Union[str, int]
 
 
 class RedisDbMeta(ABCMeta):
@@ -50,7 +50,7 @@ class ShardObject():
 
 
 class RedisDb(Service, metaclass=RedisDbMeta):
-    __records__: Dict[str, Tuple[RedisRecordFieldBase, RedisRecordBase]] = {}
+    __records__: Dict[str, Tuple[RedisRecordFieldBase, type[RedisRecordBase]]] = {}
     log = get_logger('typeddb')
 
     __shards: List[RedisConnection] = []
@@ -90,14 +90,6 @@ class RedisDb(Service, metaclass=RedisDbMeta):
             self.__shards.append(conn)
         else:
             raise TypeError('Ошибка конфига %s(%s)' % (config, type(config)))
-
-    @classmethod
-    def with_records(cls, *records) -> Type['RedisDb']:
-        collections_set = set(records)
-        namespace = {collection_name: (cls.__records__[collection_name][0].clone(), cls.__records__[collection_name][1]) for collection_name in collections_set}
-        namespace['log'] = cls.log
-        partial_class = type(cls.__name__, cls.__bases__, namespace)
-        return partial_class
 
     async def __start__(self, *args, **kwargs):
         await asyncio.gather(*[connection.start() for connection in self.__shards])

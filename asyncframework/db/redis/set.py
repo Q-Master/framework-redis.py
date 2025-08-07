@@ -1,18 +1,18 @@
 # -*- coding:utf-8 -*-
-from typing import Union, List, Iterable, Optional, TypeVar
+from typing import Union, List, Optional
 from asyncframework.log.log import get_logger
 from .connection import RedisConnection
 from .set_field import RedisSetField
-from ._base import RedisRecordBase, _T
+from ._base import RedisRecordBase, T
 
 
 __all__ = ['RedisSet']
 
 
-DataType = Union[_T, Iterable[_T]]
+DataType = Union[T, List[T]]
 
 
-class RedisSet(RedisRecordBase[RedisSetField[_T]]):
+class RedisSet(RedisRecordBase[RedisSetField[T]]):
     """Redis set
     """
     log = get_logger('redis_set')
@@ -29,7 +29,7 @@ class RedisSet(RedisRecordBase[RedisSetField[_T]]):
     def __getattr__(self, item):
         return getattr(self._connection, item)
 
-    async def load(self, key: str, count: Optional[int] = None) -> List[_T]:
+    async def load(self, key: str, count: Optional[int] = None) -> List[T]:
         """Load set
 
         Args:
@@ -39,13 +39,9 @@ class RedisSet(RedisRecordBase[RedisSetField[_T]]):
             List[Any]: resulting list of values
         """
         result = await self._connection.smembers(self._record_info.full_key(key))
-        data = self._record_info.load(result)
-        if not isinstance(data, list):
-            return [data, ]
-        else:
-            return data
+        return self._record_info.load(result)
     
-    async def pop(self, key: str) -> _T:
+    async def pop(self, key: str) -> T:
         """Pop value from set
 
         Args:
@@ -55,7 +51,7 @@ class RedisSet(RedisRecordBase[RedisSetField[_T]]):
             Any: the popped value
         """
         data = await self._connection.spop(self._record_info.full_key(key))
-        return self._record_info.load(data)
+        return self._record_info.load(data)[0]
     
     async def append(self, key: str, data: DataType) -> int:
         """Append value to set

@@ -1,13 +1,13 @@
 # -*- coding:utf-8 -*-
-from typing import Optional, Any, Union, Iterable, List, Self
-from .record_field import RedisRecordField, _T
+from typing import Optional, Any, Union, List, Self
+from .record_field import RedisRecordField, T
 from ._base import RecordType
 
 
 __all__ = ['RedisSetField']
 
 
-class RedisSetField(RedisRecordField[_T]):
+class RedisSetField(RedisRecordField[T]):
     """Field for the redis set
     """
     def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: int = 0):
@@ -21,9 +21,9 @@ class RedisSetField(RedisRecordField[_T]):
         super().__init__(record_type, prefix, expire)
 
     def clone(self) -> Self:
-        return Self(self.record_type, self.prefix, self.expire)
+        return self.__class__(self.record_type, self.prefix, self.expire)
 
-    def dump(self, py_data: Union[_T, Iterable[_T]]) -> List[Any]:
+    def dump(self, py_data: Union[T, List[T]]) -> List[Any]:
         dumper = super().dump
         if isinstance(py_data, (list, tuple)):
             raw_data = [dumper(x) for x in py_data]
@@ -31,9 +31,9 @@ class RedisSetField(RedisRecordField[_T]):
             raw_data = [dumper(py_data), ]
         return raw_data
 
-    def load(self, raw_data: Union[Any, List[Any]]) -> Union[_T, List[_T]]:
+    def load(self, raw_data: Union[Any, List[Any]]) -> List[T]:
         loader = super().load
-        if isinstance(raw_data, (list, tuple)):
+        if isinstance(raw_data, list):
             return [loader(x) for x in raw_data]
         else:
-            return loader(raw_data)
+            return [loader(raw_data), ]

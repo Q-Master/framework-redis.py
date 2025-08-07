@@ -65,7 +65,8 @@ class RedisConnection(Service):
         self.__redis_connection = Redis(connection_pool=self.__redis_pool)
 
     async def __stop__(self):
-        await self.__redis_pool.disconnect()
+        if self.__redis_pool:
+            await self.__redis_pool.disconnect()
 
     def __getattr__(self, item):
         return getattr(self.__redis_connection, item)

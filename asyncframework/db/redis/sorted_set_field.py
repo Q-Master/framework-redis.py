@@ -1,18 +1,18 @@
 # -*- coding:utf-8 -*-
 from typing import Optional, Tuple, Self, Union, List, Any, Dict
-from .record_field import RedisRecordField, _T
+from .record_field import RedisRecordField, T
 from ._base import RecordType
 
 
 __all__ = ['RedisSortedSetField', 'RedisSortedSetData']
 
 
-RedisSortedSetData = Tuple[float, _T]
+RedisSortedSetData = Tuple[float, T]
 RedisRawSortedSetData = Tuple[Any, float]
-DataType = Union[RedisSortedSetData, List[RedisSortedSetData]]
+DataType = Union[RedisSortedSetData[T], List[RedisSortedSetData[T]]]
 
 
-class RedisSortedSetField(RedisRecordField[_T]):
+class RedisSortedSetField(RedisRecordField[T]):
     """Field for the redis set
     """
     def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: int = 0):
@@ -26,23 +26,23 @@ class RedisSortedSetField(RedisRecordField[_T]):
         super().__init__(record_type, prefix, expire)
 
     def clone(self) -> Self:
-        return Self(self.record_type, self.prefix, self.expire)
+        return self.__class__(self.record_type, self.prefix, self.expire)
 
-    def load_with_scores(self, data: Union[RedisRawSortedSetData, List[RedisRawSortedSetData]]):
+    def load_with_scores(self, data: Union[RedisRawSortedSetData, List[RedisRawSortedSetData]]) -> List[RedisSortedSetData[T]]:
         loader = super().load
         if isinstance(data, list):
             return [(y, loader(x)) for (x, y) in data]
         else:
-            return (data[1], loader(data[0]))
+            return [(data[1], loader(data[0])), ]
 
-    def load(self, data: Union[Any, List[Any]]) -> Union[_T, List[_T]]:
+    def load(self, data: Union[Any, List[Any]]) -> List[T]:
         loader = super().load
         if isinstance(data, list):
             return [loader(x) for x in data]
         else:
-            return loader(data)
+            return [loader(data), ]
 
-    def dump(self, data: Union[_T, List[_T]]) -> List[Any]:
+    def dump(self, data: Union[T, List[T]]) -> List[Any]:
         dumper = super().dump
         if isinstance(data, list):
             return [dumper(x) for x in data]

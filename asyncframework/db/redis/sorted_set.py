@@ -1,17 +1,17 @@
 # -*- coding:utf-8 -*-
-from typing import Union, List, Any, Tuple, Optional
+from typing import Union, List, Any, Sequence, Optional
 import asyncio
 from asyncframework.log.log import get_logger
 from packets import PacketBase
 from .connection import RedisConnection
 from .sorted_set_field import RedisSortedSetField, RedisSortedSetData, DataType
-from ._base import RedisRecordBase, _T
+from ._base import RedisRecordBase, T
 
 
 __all__ = ['RedisSortedSet']
 
 
-class RedisSortedSet(RedisRecordBase[RedisSortedSetField[_T]]):
+class RedisSortedSet(RedisRecordBase[RedisSortedSetField[T]]):
     """Redis set
     """
     log = get_logger('redis_set')
@@ -28,7 +28,7 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[_T]]):
     def __getattr__(self, item):
         return getattr(self._connection, item)
 
-    async def load(self, key: str, start: int = 0, end: int = -1, desc: bool = False, withscores=True) -> List[Union[RedisSortedSetData, _T]]:
+    async def load(self, key: str, start: int = 0, end: int = -1, desc: bool = False, withscores=True) -> Sequence[Union[RedisSortedSetData[T], T]]:
         """Load set
 
         Args:
@@ -43,14 +43,14 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[_T]]):
         else:
             return self._record_info.load(result)
     
-    async def range_by_score(self, key: str, min: float, max: float, start: Optional[int] = None, amount: Optional[int] = None, withscores=True) -> List[Union[RedisSortedSetData, _T]]:
+    async def range_by_score(self, key: str, min: float, max: float, start: Optional[int] = None, amount: Optional[int] = None, withscores=True) -> Sequence[Union[RedisSortedSetData[T], T]]:
         result = await self._connection.zrangebyscore(self._record_info.full_key(key), min, max, start, amount, withscores=withscores)
         if withscores:
             return self._record_info.load_with_scores(result)
         else:
             return self._record_info.load(result)
 
-    async def pop_min(self, key: str, count: Optional[int] = None) -> RedisSortedSetData:
+    async def pop_min(self, key: str, count: Optional[int] = None) -> RedisSortedSetData[T]:
         """Pop value from set
 
         Args:
@@ -60,9 +60,9 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[_T]]):
             Any: the popped value
         """
         data = await self._connection.zpopmin(self._record_info.full_key(key), count)
-        return self._record_info.load_with_scores(data)
+        return self._record_info.load_with_scores(data)[0]
 
-    async def pop_max(self, key: str, count: Optional[int] = None) -> RedisSortedSetData:
+    async def pop_max(self, key: str, count: Optional[int] = None) -> RedisSortedSetData[T]:
         """Pop value from set
 
         Args:
@@ -72,7 +72,7 @@ class RedisSortedSet(RedisRecordBase[RedisSortedSetField[_T]]):
             Any: the popped value
         """
         data = await self._connection.zpopmax(self._record_info.full_key(key), count)
-        return self._record_info.load_with_scores(data)
+        return self._record_info.load_with_scores(data)[0]
 
     async def count(self, key: str, min: float, max: float) -> int:
         return await self._connection.zcount(self._record_info.full_key(key), min, max)

@@ -1,12 +1,12 @@
 # -*- coding:utf-8 -*-
 from typing import Optional, Self
-from ._base import RedisRecordFieldBase, RecordType, _T
+from ._base import RedisRecordFieldBase, RecordType, T
 
 
 __all__ = ['RedisRecordField']
 
 
-class RedisRecordField(RedisRecordFieldBase[_T]):
+class RedisRecordField(RedisRecordFieldBase[T]):
     """Redis record field
     """
     def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: Optional[int] = None):
@@ -21,4 +21,4 @@ class RedisRecordField(RedisRecordFieldBase[_T]):
         self.set_check_record_type(record_type)
 
     def clone(self) -> Self:
-        return Self(self.record_type, self.prefix, self.expire)
+        return self.__class__(self.record_type, self.prefix, self.expire)

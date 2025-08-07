@@ -3,6 +3,7 @@ from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, L
 import datetime
 from asyncframework.log.log import get_logger
 from packets import PacketBase
+from packets import json
 from packets.processors import FieldProcessor
 from .connection import RedisConnection
 
@@ -10,15 +11,15 @@ from .connection import RedisConnection
 __all__ = ['RedisRecordFieldBase', 'RedisRecordBase']
 
 
+T = TypeVar('T')
 RecordType = Union[FieldProcessor, Type[PacketBase]]
-_T = TypeVar('T')
 
 
-class RedisRecordFieldBase(Generic[_T]):
+class RedisRecordFieldBase(Generic[T]):
     """Redis record field base
     """
     prefix: Optional[str] = None
-    expire: int = 0
+    expire: int = -1
     record_type: RecordType
 
     def __init__(self, prefix: Optional[str] = None, expire: Optional[int] = None):
@@ -29,7 +30,7 @@ class RedisRecordFieldBase(Generic[_T]):
             expire (int, optional): expiration in seconds (None - not expiring). Defaults to None.
         """
         self.prefix = prefix
-        self.expire = expire
+        self.expire = expire or -1
 
     def full_key(self, key: str) -> str:
         """Return full key in redis using predefined prefix
@@ -60,33 +61,35 @@ class RedisRecordFieldBase(Generic[_T]):
         else:
             raise TypeError(f'Unknown processor: {type(record_type)}')
 
-    def dump(self, py_data: _T) -> Any:
+    def dump(self, py_data: T) -> Any:
         if isinstance(self.record_type, FieldProcessor):
             self.record_type.check_py(py_data)
             return self.record_type.py_to_raw(py_data)
-        else:
+        elif isinstance(py_data, PacketBase):
             return py_data.dumps()
+        else:
+            json.dumps(py_data)
 
-    def load(self, raw_data: Any) -> _T:
+    def load(self, raw_data: Any) -> T:
         if isinstance(self.record_type, FieldProcessor):
             self.record_type.check_raw(raw_data)
             return self.record_type.raw_to_py(raw_data, False)
         else:
-            return self.record_type.loads(raw_data)
+            return self.record_type.loads(raw_data) # type: ignore
 
     def clone(self):
         pass
 
 
-_U = TypeVar('U', bound=RedisRecordFieldBase)
+U = TypeVar('U', bound=RedisRecordFieldBase)
 
 
-class RedisRecordBase(Generic[_U]):
+class RedisRecordBase(Generic[U]):
     log = get_logger('typed_collection')
     _connection: RedisConnection
-    _record_info: _U
+    _record_info: U
 
-    def __init__(self, connection: RedisConnection, record_info: _U) -> None:
+    def __init__(self, connection: RedisConnection, record_info: U) -> None:
         self._connection = connection
         self._record_info = record_info
 
@@ -117,6 +120,10 @@ class RedisRecordBase(Generic[_U]):
 
     async def expire_time(self, key: str) -> int:
         return await self._connection.expiretime(self._record_info.full_key(key))
+
+    async def persist(self, key: str) -> bool:
+        res = await self._connection.persist(self._record_info.full_key(key))
+        return res > 0
 
     async def copy(self, src: str, dest: str, replace: bool = False) -> bool:
         res = await self._connection.copy(self._record_info.full_key(src), self._record_info.full_key(dest), replace=replace)

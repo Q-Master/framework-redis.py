@@ -1,20 +1,18 @@
 # -*- coding:utf-8 -*-
-from typing import Union, Iterable, Optional, List, Generic, TypeVar, Tuple, Any
+from typing import Union, Iterable, Optional, List, Tuple
 from asyncframework.log.log import get_logger
-from packets import PacketBase
 from .connection import RedisConnection
 from .record_field import RedisRecordField
-from ._base import RedisRecordBase
+from ._base import RedisRecordBase, T
 
 
 __all__ = ['RedisRecord']
 
 
-_T = TypeVar('T')
-DataType = Union[_T, Iterable[_T]]
+DataType = Union[T, List[T]]
 
 
-class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
+class RedisRecord(RedisRecordBase[RedisRecordField[T]]):
     """Redis record class
     """
     log = get_logger('typed_collection')
@@ -28,7 +26,7 @@ class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
         """
         super().__init__(connection, record_info)
 
-    async def load(self, mask: str = '*', count: Optional[int] = None) -> List[_T]:
+    async def load(self, mask: str = '*', count: Optional[int] = None) -> List[T]:
         """Load elements from keys by mask
 
         Args:
@@ -38,14 +36,15 @@ class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
         Returns:
             List[T]: loaded PacketBase instances of key values
         """
-        result: List[_T] = []
+        result: List[T] = []
         match = self._record_info.full_key(mask)
         async for key in self._connection.iscan(match=match, count=count):
-            obj: _T = await self._load(key)
-            result.append(obj)
+            obj: T | None = await self._load(key)
+            if obj is not None:
+                result.append(obj)
         return result
 
-    async def load_one(self, key: str) -> _T:
+    async def load_one(self, key: str) -> Optional[T]:
         """Load one value by key name
 
         Args:
@@ -72,7 +71,7 @@ class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
         if isinstance(key, (list, tuple)):
             if isinstance(data, (list, tuple, set)):
                 if len(data) == len(key):
-                    storage = zip(self._record_info.full_keys(key), (self._record_info.dump() for x in data))
+                    storage = zip(self._record_info.full_keys(key), (self._record_info.dump(d) for d in data))
                 else:
                     raise AttributeError(f'Length of key array ({len(key)}) is not the same as of data array ({len(key)})')
             else:
@@ -93,7 +92,7 @@ class RedisRecord(RedisRecordBase[RedisRecordField[_T]]):
         for k, v in storage:
             await self._connection.set(k, v, ex=self._record_info.expire, nx=nx, xx=xx)
 
-    async def _load(self, key) -> Optional[_T]:
+    async def _load(self, key) -> Optional[T]:
         data = await self._connection.get(key)
         if data:
             return self._record_info.load(data)
