@@ -1,118 +1,37 @@
 # -*- coding:utf-8 -*-
-import asyncio
-from typing import Dict, Union, Sequence, List, Hashable, Tuple
-from abc import ABCMeta
+from typing import Union
 from asyncframework.app.service import Service
 from asyncframework.log.log import get_logger
 from .connection import RedisConnection
-from .lock_field import RedisLockField
-from .record_field import RedisRecordField
-from .script_field import RedisScriptField
-from .set_field import RedisSetField
-from .sorted_set_field import RedisSortedSetField
-from .lock import RedisLock
-from .record import RedisRecord
-from .script import RedisScript
-from .set import RedisSet
-from .sorted_set import RedisSortedSet
-from ._base import RedisRecordFieldBase, RedisRecordBase
+from ._base import RedisRecordBase
 
 
 __all__ = ['RedisDb']
 
 
-config_type = Union[Sequence[Union[str, dict]], Union[str, dict]]
+config_type = Union[str, dict]
 key_type = Union[str, int]
 
 
-class RedisDbMeta(ABCMeta):
-    def __new__(cls, name, bases, namespace):
-        records = {}
-        for name, value in list(namespace.items()):
-            if isinstance(value, RedisRecordFieldBase):
-                if isinstance(value, RedisLockField):
-                    records[name] = (value, RedisLock)
-                elif isinstance(value, RedisScriptField):
-                    records[name] = (value, RedisScript)
-                elif isinstance(value, RedisSetField):
-                    records[name] = (value, RedisSet)
-                elif isinstance(value, RedisSortedSetField):
-                    records[name] = (value, RedisSortedSet)
-                elif isinstance(value, RedisRecordField):
-                    records[name] = (value, RedisRecord)
-                del namespace[name]
-        namespace['__records__'] = records
-        return super().__new__(cls, name, bases, namespace)
-
-
-class ShardObject():
-    pass
-
-
-class RedisDb(Service, metaclass=RedisDbMeta):
-    __records__: Dict[str, Tuple[RedisRecordFieldBase, type[RedisRecordBase]]] = {}
+class RedisDb(Service):
     log = get_logger('typeddb')
 
-    __shards: List[RedisConnection] = []
-    __items: List[ShardObject] = []
-    __sharded: bool = False
-
-    @property
-    def sharded(self) -> bool:
-        return self.__sharded
-
-    @property
-    def shards(self) -> int:
-        if not self.sharded:
-            return 0
-        return len(self.__shards)
+    __connection: RedisConnection
 
     def __init__(self, config: config_type) -> None:
         super(RedisDb, self).__init__()
-        self.__shards = []
-        self.__items = []
-        self.__sharded = False
-        if isinstance(config, (list, tuple)):
-            for element_config in config:
-                if isinstance(element_config, str):
-                    conn = RedisConnection(element_config)
-                elif isinstance(element_config, dict):
-                    conn = RedisConnection.from_host_port(**element_config)
-                else:
-                    raise TypeError(u'Ошибка конфига %s(%s)' % (element_config, type(element_config)))
-                self.__shards.append(conn)
-                self.__sharded = True
-        elif isinstance(config, str):
-            conn = RedisConnection(config)
-            self.__shards.append(conn)
+        if isinstance(config, str):
+            self.__connection = RedisConnection(config)
         elif isinstance(config, dict):
-            conn = RedisConnection.from_host_port(**config)
-            self.__shards.append(conn)
+            self.__connection = RedisConnection.from_host_port(**config)
         else:
             raise TypeError('Ошибка конфига %s(%s)' % (config, type(config)))
 
     async def __start__(self, *args, **kwargs):
-        await asyncio.gather(*[connection.start() for connection in self.__shards])
-        for connection in self.__shards:
-            if self.__sharded:
-                shard = ShardObject()
-                for coll_name, (record_info, record_class) in self.__records__.items():
-                    setattr(shard, coll_name, record_class(connection, record_info))
-                self.__items.append(shard)
-            else:
-                for coll_name, (record_info, record_class) in self.__records__.items():
-                    setattr(self, coll_name, record_class(connection, record_info))
+        await self.__connection.start()
+        for value in self.__dict__.values():
+            if isinstance(value, RedisRecordBase):
+                value.connection = self.__connection
 
     async def __stop__(self):
-        await asyncio.gather(*[connection.stop() for connection in self.__shards])
-
-    def __getitem__(self, key: key_type) -> ShardObject:
-        if not self.__sharded:
-            raise AttributeError('Not sharded DB')
-        shard_id = -1
-        if isinstance(key, int):
-            shard_id = key
-        elif isinstance(key, Hashable):
-            shard_id = hash(key) % len(self.__items)
-        assert 0 <= shard_id < len(self.__items)
-        return self.__items[shard_id]
+        await self.__connection.stop()

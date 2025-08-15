@@ -1,30 +1,46 @@
 # -*- coding:utf-8 -*-
-from typing import Union, Iterable, Optional, List, Tuple
+from typing import Union, Iterable, Optional, List, Tuple, Self
 from asyncframework.log.log import get_logger
-from .connection import RedisConnection
-from .record_field import RedisRecordField
-from ._base import RedisRecordBase, T
+from packets import FieldProcessor
+from ._base import RedisRecordFieldBase, RedisRecordBase, RecordType, T
 
 
-__all__ = ['RedisRecord']
+__all__ = ['RedisRecord', 'RedisRecordField']
 
 
 DataType = Union[T, List[T]]
 
 
-class RedisRecord(RedisRecordBase[RedisRecordField[T]]):
+class _RedisRecordField(RedisRecordFieldBase[T]):
+    """Redis record field
+    """
+    def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: Optional[int] = None):
+        """Constructor
+
+        Args:
+            record_type (RecordType): the type of the record value (field processor or packet)
+            prefix (Optional[str], optional): record key prefix. Defaults to None.
+            expire (int, optional): expiration in seconds (None - not expiring). Defaults to None.
+        """
+        super().__init__(prefix, expire)
+        self.set_check_record_type(record_type)
+
+    def clone(self) -> Self:
+        return self.__class__(self.record_type, self.prefix, self.expire)
+
+
+class RedisRecord(RedisRecordBase[_RedisRecordField[T]]):
     """Redis record class
     """
     log = get_logger('typed_collection')
 
-    def __init__(self, connection: RedisConnection, record_info: RedisRecordField) -> None:
+    def __init__(self, record_info: _RedisRecordField) -> None:
         """Constructor
 
         Args:
-            connection (RedisConnection): connection to redis
             record_info (RedisRecordField): the record additional info
         """
-        super().__init__(connection, record_info)
+        super().__init__(record_info)
 
     async def load(self, mask: str = '*', count: Optional[int] = None) -> List[T]:
         """Load elements from keys by mask
@@ -38,7 +54,7 @@ class RedisRecord(RedisRecordBase[RedisRecordField[T]]):
         """
         result: List[T] = []
         match = self._record_info.full_key(mask)
-        async for key in self._connection.iscan(match=match, count=count):
+        async for key in self.connection.iscan(match=match, count=count):
             obj: T | None = await self._load(key)
             if obj is not None:
                 result.append(obj)
@@ -90,10 +106,15 @@ class RedisRecord(RedisRecordBase[RedisRecordField[T]]):
             nx=True
             xx=None
         for k, v in storage:
-            await self._connection.set(k, v, ex=self._record_info.expire, nx=nx, xx=xx)
+            await self.connection.set(k, v, ex=self._record_info.expire, nx=nx, xx=xx)
 
     async def _load(self, key) -> Optional[T]:
-        data = await self._connection.get(key)
+        data = await self.connection.get(key)
         if data:
             return self._record_info.load(data)
         return None
+
+
+def RedisRecordField(record_type: RecordType, prefix: Optional[str] = None, expire: Optional[int] = None) -> RedisRecord:
+    rt = record_type.my_type if isinstance(record_type, FieldProcessor) else record_type
+    return RedisRecord(_RedisRecordField[rt](record_type, prefix, expire))

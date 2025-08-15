@@ -2,9 +2,7 @@
 from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, Sequence, Union
 import datetime
 from asyncframework.log.log import get_logger
-from packets import PacketBase
-from packets import json
-from packets.processors import FieldProcessor
+from packets import PacketBase, json, FieldProcessor
 from .connection import RedisConnection
 
 
@@ -70,7 +68,7 @@ class RedisRecordFieldBase(Generic[T]):
         else:
             json.dumps(py_data)
 
-    def load(self, raw_data: Any) -> T:
+    def load(self, raw_data: Any) -> T | None:
         if isinstance(self.record_type, FieldProcessor):
             self.record_type.check_raw(raw_data)
             return self.record_type.raw_to_py(raw_data, False)
@@ -86,45 +84,56 @@ U = TypeVar('U', bound=RedisRecordFieldBase)
 
 class RedisRecordBase(Generic[U]):
     log = get_logger('typed_collection')
-    _connection: RedisConnection
+    _connection: RedisConnection | None
     _record_info: U
 
-    def __init__(self, connection: RedisConnection, record_info: U) -> None:
-        self._connection = connection
+    def __init__(self, record_info: U) -> None:
+        self._connection = None
         self._record_info = record_info
 
     def __getattr__(self, item):
-        return getattr(self._connection, item)
+        return getattr(self.connection, item)
+
+    @property
+    def connection(self) -> RedisConnection:
+        if self._connection is None:
+            raise RuntimeError(f'Connection for {self.__class__.__name__} is not set')
+        else:
+            return self._connection
+
+    @connection.setter
+    def connection(self, connection: RedisConnection):
+        self._connection = connection
 
     async def delete(self, key: Union[Sequence[str], str]) -> int:
         if isinstance(key, str):
             to_delete = [self._record_info.full_key(key)]
         else:
             to_delete = list(self._record_info.full_keys(key))
-        return await self._connection.unlink(*to_delete)
+        return await self.connection.unlink(*to_delete)
 
     async def rename(self, src: str, dest: str) -> None:
-        await self._connection.rename(self._record_info.full_key(src), self._record_info.full_key(dest))
+        await self.connection.rename(self._record_info.full_key(src), self._record_info.full_key(dest))
 
     async def exists(self, key: str) -> bool:
-        res = await self._connection.exists(self._record_info.full_key(key))
+        res = await self.connection.exists(self._record_info.full_key(key))
         return res > 0
 
     async def expire(self, key: str) -> bool:
-        res = await self._connection.expire(self._record_info.full_key(key), time=self._record_info.expire)
+        res = await self.connection.expire(self._record_info.full_key(key), time=self._record_info.expire)
         return res > 0
 
     async def expire_at(self, key: str, when: int | datetime.datetime) -> bool:
-        res = await self._connection.expireat(self._record_info.full_key(key), when)
+        res = await self.connection.expireat(self._record_info.full_key(key), when)
         return res > 0
 
     async def expire_time(self, key: str) -> int:
-        return await self._connection.expiretime(self._record_info.full_key(key))
+        return await self.connection.expiretime(self._record_info.full_key(key))
 
     async def persist(self, key: str) -> bool:
-        res = await self._connection.persist(self._record_info.full_key(key))
+        res = await self.connection.persist(self._record_info.full_key(key))
         return res > 0
 
     async def copy(self, src: str, dest: str, replace: bool = False) -> bool:
-        res = await self._connection.copy(self._record_info.full_key(src), self._record_info.full_key(dest), replace=replace)
+        res = await self.connection.copy(self._record_info.full_key(src), self._record_info.full_key(dest), replace=replace)
         return res > 0
