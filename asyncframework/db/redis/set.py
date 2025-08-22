@@ -15,7 +15,7 @@ DataType = Union[T, List[T]]
 class _RedisSetField(_RedisRecordField[T]):
     """Field for the redis set
     """
-    def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: int = 0):
+    def __init__(self, record_type: RecordType, prefix: Optional[str] = None, expire: Optional[int] = None):
         """Constructor
 
         Args:
@@ -36,7 +36,7 @@ class _RedisSetField(_RedisRecordField[T]):
             raw_data = [dumper(py_data), ]
         return raw_data
 
-    def load(self, raw_data: Union[Any, List[Any]]) -> List[T | None]:
+    def load(self, raw_data: Union[Any, List[Any]]) -> List[T]:
         loader = super().load
         if isinstance(raw_data, list):
             return [loader(x) for x in raw_data]
@@ -60,7 +60,7 @@ class RedisSet(RedisRecordBase[_RedisSetField[T]]):
     def __getattr__(self, item):
         return getattr(self.connection, item)
 
-    async def load(self, key: str, count: Optional[int] = None) -> List[T | None]:
+    async def load(self, key: str, count: Optional[int] = None) -> List[T]:
         """Load set
 
         Args:
@@ -72,7 +72,7 @@ class RedisSet(RedisRecordBase[_RedisSetField[T]]):
         result = await self.connection.smembers(self._record_info.full_key(key))
         return self._record_info.load(result)
     
-    async def pop(self, key: str) -> T | None:
+    async def pop(self, key: str) -> Optional[T]:
         """Pop value from set
 
         Args:
@@ -82,7 +82,10 @@ class RedisSet(RedisRecordBase[_RedisSetField[T]]):
             Any: the popped value
         """
         data = await self.connection.spop(self._record_info.full_key(key))
-        return self._record_info.load(data)[0]
+        if data:
+            return self._record_info.load(data)[0]
+        else:
+            return None
     
     async def append(self, key: str, data: DataType) -> int:
         """Append value to set

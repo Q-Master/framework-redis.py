@@ -29,7 +29,7 @@ class RedisDb(Service):
 
     async def __start__(self, *args, **kwargs):
         await self.__connection.start()
-        for value in self.__dict__.values():
+        for value in self.__class__.__dict__.values():
             if isinstance(value, RedisRecordBase):
                 value.connection = self.__connection
 

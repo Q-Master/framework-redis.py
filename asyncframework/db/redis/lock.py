@@ -13,7 +13,7 @@ __all__ = ['RedisLock', 'RedisLockError', 'RedisLockInvalidTimeoutError', 'Redis
 class _RedisLockField(RedisRecordFieldBase):
     """Field for lock
     """
-    def __init__(self, prefix: Optional[str] = None, expire: int = 0, id: Optional[str] = None):
+    def __init__(self, prefix: Optional[str] = None, expire: Optional[int] = None, id: Optional[str] = None):
         """Constructor
 
         Args:

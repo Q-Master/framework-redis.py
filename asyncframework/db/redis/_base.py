@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+import traceback
 from typing import Optional, Iterable, Generator, Any, Type, TypeVar, Generic, Sequence, Union
 import datetime
 from asyncframework.log.log import get_logger
@@ -17,7 +18,7 @@ class RedisRecordFieldBase(Generic[T]):
     """Redis record field base
     """
     prefix: Optional[str] = None
-    expire: int = -1
+    expire: Optional[int] = None
     record_type: RecordType
 
     def __init__(self, prefix: Optional[str] = None, expire: Optional[int] = None):
@@ -28,7 +29,7 @@ class RedisRecordFieldBase(Generic[T]):
             expire (int, optional): expiration in seconds (None - not expiring). Defaults to None.
         """
         self.prefix = prefix
-        self.expire = expire or -1
+        self.expire = expire
 
     def full_key(self, key: str) -> str:
         """Return full key in redis using predefined prefix
@@ -68,12 +69,12 @@ class RedisRecordFieldBase(Generic[T]):
         else:
             json.dumps(py_data)
 
-    def load(self, raw_data: Any) -> T | None:
+    def load(self, raw_data: Any) -> T:
         if isinstance(self.record_type, FieldProcessor):
             self.record_type.check_raw(raw_data)
             return self.record_type.raw_to_py(raw_data, False)
         else:
-            return self.record_type.loads(raw_data) # type: ignore
+            return self.record_type.loads(raw_data)  # type: ignore
 
     def clone(self):
         pass
@@ -84,7 +85,7 @@ U = TypeVar('U', bound=RedisRecordFieldBase)
 
 class RedisRecordBase(Generic[U]):
     log = get_logger('typed_collection')
-    _connection: RedisConnection | None
+    _connection: Optional[RedisConnection]
     _record_info: U
 
     def __init__(self, record_info: U) -> None:
@@ -92,7 +93,7 @@ class RedisRecordBase(Generic[U]):
         self._record_info = record_info
 
     def __getattr__(self, item):
-        return getattr(self.connection, item)
+        return getattr(self._connection, item)
 
     @property
     def connection(self) -> RedisConnection:
@@ -123,7 +124,7 @@ class RedisRecordBase(Generic[U]):
         res = await self.connection.expire(self._record_info.full_key(key), time=self._record_info.expire)
         return res > 0
 
-    async def expire_at(self, key: str, when: int | datetime.datetime) -> bool:
+    async def expire_at(self, key: str, when: Union[int, datetime.datetime]) -> bool:
         res = await self.connection.expireat(self._record_info.full_key(key), when)
         return res > 0
 

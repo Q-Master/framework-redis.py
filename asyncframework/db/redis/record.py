@@ -55,7 +55,7 @@ class RedisRecord(RedisRecordBase[_RedisRecordField[T]]):
         result: List[T] = []
         match = self._record_info.full_key(mask)
         async for key in self.connection.iscan(match=match, count=count):
-            obj: T | None = await self._load(key)
+            obj: Optional[T] = await self._load(key)
             if obj is not None:
                 result.append(obj)
         return result

@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 from packets import Packet, makeField
 from packets.processors import string_t, str_int_t
-from asyncframework.db.redis import RedisDb, RedisRecord, RedisRecordField, RedisSortedSet, RedisSortedSetField
-from asyncframework.app import main
-from asyncframework.app.script import Script
+from asyncframework.app import main, Script
+from asyncframework.app.config import Config
 from asyncframework.util.datetime import time
 from asyncframework.log import get_logger
+from asyncframework.db.redis import RedisDb, RedisRecord, RedisRecordField, RedisSortedSet, RedisSortedSetField
+
+
+class ExampleConfig(Config):
+    pass
 
 
 class TopUser(Packet):
@@ -25,7 +29,7 @@ class Example(Script):
 
     async def __start__(self, *args, **kwargs):
         self.log.info('Starting example DB script')
-        self.example_db = RedisExampleDB('redis://127.0.0.1:6379/0')
+        self.example_db = RedisExampleDB('redis://192.168.10.10:6379/0')
         await self.example_db.start(self.ioloop)
 
     async def __stop__(self, *args):
@@ -41,7 +45,7 @@ class Example(Script):
         league_user = TopUser(
             user_id='ExampleTopUserID'
         )
-        self.log.info(f'League user before: {league_user}')
+        self.log.info(f'ExampleUser before: {league_user}')
         self.log.info(f'Saving example user to cache')
         await self.example_db.top_user_cache.store('ExampleUser', league_user)
         league_user = await self.example_db.top_user_cache.load_one('ExampleUser')
@@ -51,4 +55,6 @@ class Example(Script):
         self.log.info(f'Division {top}')
 
 if __name__ == '__main__':
+    config = ExampleConfig()
+    config.init_logging()
     main(Example, None)
