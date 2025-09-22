@@ -57,9 +57,6 @@ class RedisSet(RedisRecordBase[_RedisSetField[T]]):
         """
         super().__init__(set_info)
 
-    def __getattr__(self, item):
-        return getattr(self.connection, item)
-
     async def load(self, key: str, count: Optional[int] = None) -> List[T]:
         """Load set
 
