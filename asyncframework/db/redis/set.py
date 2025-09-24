@@ -30,7 +30,7 @@ class _RedisSetField(_RedisRecordField[T]):
 
     def dump(self, py_data: Union[T, List[T]]) -> List[Any]:
         dumper = super().dump
-        if isinstance(py_data, (list, tuple)):
+        if isinstance(py_data, (list, tuple, set)):
             raw_data = [dumper(x) for x in py_data]
         else:
             raw_data = [dumper(py_data), ]
@@ -38,7 +38,7 @@ class _RedisSetField(_RedisRecordField[T]):
 
     def load(self, raw_data: Union[Any, List[Any]]) -> List[T]:
         loader = super().load
-        if isinstance(raw_data, list):
+        if isinstance(raw_data, (list, set)):
             return [loader(x) for x in raw_data]
         else:
             return [loader(raw_data), ]

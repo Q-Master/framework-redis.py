@@ -41,14 +41,14 @@ class _RedisSortedSetField(_RedisRecordField[T]):
 
     def load(self, data: Union[Any, List[Any]]) -> List[T]:
         loader = super().load
-        if isinstance(data, list):
+        if isinstance(data, (list, set)):
             return [loader(x) for x in data]
         else:
             return [loader(data), ]
 
     def dump(self, data: Union[T, List[T]]) -> List[Any]:
         dumper = super().dump
-        if isinstance(data, list):
+        if isinstance(data, (list, set)):
             return [dumper(x) for x in data]
         else:
             return [dumper(data), ]
