@@ -13,7 +13,7 @@ __all__ = ['RedisLock', 'RedisLockError', 'RedisLockInvalidTimeoutError', 'Redis
 class _RedisLockField(RedisRecordFieldBase):
     """Field for lock
     """
-    def __init__(self, prefix: Optional[str] = None, expire: Optional[int] = None, id: Optional[str] = None):
+    def __init__(self, prefix: Optional[str] = None, expire: int = 0, id: Optional[str] = None):
         """Constructor
 
         Args:
@@ -25,6 +25,7 @@ class _RedisLockField(RedisRecordFieldBase):
         self.id = str(uuid4()) if id is None else id
 
     def clone(self) -> '_RedisLockField':
+        assert self.expire is not None
         return _RedisLockField(self.prefix, self.expire, self.id)
 
 
@@ -209,7 +210,8 @@ class RedisLock(RedisRecordBase[_RedisLockField]):
         Returns:
             RealLock: lock object
         """
-        return RedisLock.RealLock(self.connection, self.lock_info.id, self.lock_info.prefix, name, self.lock_info.expire)
+        assert self._record_info.expire is not None
+        return RedisLock.RealLock(self.connection, self._record_info.id, self._record_info.prefix, name, self._record_info.expire)
 
 
 def RedisLockField(prefix: Optional[str] = None, expire: int = 0, id: Optional[str] = None) -> RedisLock:
