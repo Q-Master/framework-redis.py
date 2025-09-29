@@ -7,7 +7,7 @@ from .script import *
 from .set import *
 from .sorted_set import *
 
-__version__ = '0.7.1'
+__version__ = '0.7.2'
 
 __title__ = 'asyncframework-redis'
 __description__ = 'Async framework redis addon.'

@@ -96,12 +96,12 @@ class RedisLock(RedisRecordBase[_RedisLockField]):
                 recursion (set): Optional set of recursive lock ids
             """
             self.key = key
-            self.rkey = self.info.full_recursion_key(key)
             self.conn = conn
             self.info = info
             self.log = log
             self.recursion = recursion
             self.id = str(uuid4()) if self.info.id is None else self.info.id
+            self.rkey = self.info.full_recursion_key(key)
             self.lock_timeout_future: Optional[TimerHandle] = None
 
         async def lock(self):
