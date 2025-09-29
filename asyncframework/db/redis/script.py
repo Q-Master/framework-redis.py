@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Union, Self
+from typing import Union, Self, Optional, Sequence, Iterable
 from hashlib import sha1
 from redis.exceptions import NoScriptError
 from ._base import RedisRecordBase, RedisRecordFieldBase
@@ -90,14 +90,23 @@ class RedisScript(RedisRecordBase[_RedisScriptField]):
         """
         super().__init__(script_info)
     
-    async def __call__(self, *args, **kwargs) -> Any:
+    async def __call__(self, 
+        keys: Optional[Sequence[str]] = None,
+        args: Optional[Iterable[Union[str, int, float]]] = None
+    ):
         """Execute the script
 
+        Args:
+            keys (Optional[Sequence[str]], optional): optional script keys. Defaults to None.
+            args (Optional[Iterable[Union[str, int, float]]], optional): optional script args. Defaults to None.
+
         Returns:
-            Any: the result of execution
+            _type_: _description_
         """
-        keys_num = len(kwargs) + len(args)
-        keys_args = tuple(args) + tuple(kwargs.keys()) + tuple(kwargs.values()) if keys_num > 0 else []
+        keys = keys or []
+        args = args or []
+        keys_num = len(keys)
+        keys_args = tuple(keys) + tuple(args)
         try:
             result = await self.connection.evalsha(self._record_info.code_sha1, keys_num, *keys_args)
         except NoScriptError:

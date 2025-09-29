@@ -1,218 +1,189 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 from uuid import uuid4
-from asyncframework.log.log import get_logger
+from logging import Logger
+from asyncio import sleep, TimerHandle, CancelledError
+from asyncframework.log import get_logger
 from .script import _RedisScriptField, RedisScriptData, RedisScript
 from .connection import RedisConnection
 from ._base import RedisRecordFieldBase, RedisRecordBase
 
 
-__all__ = ['RedisLock', 'RedisLockError', 'RedisLockInvalidTimeoutError', 'RedisLockField']
+__all__ = ['RedisLock', 'DeadlockError', 'LockTimeout', 'RedisLockField']
+
+
+RETRY_LOCK_DELAY = 0.1
 
 
 class _RedisLockField(RedisRecordFieldBase):
     """Field for lock
     """
-    def __init__(self, prefix: Optional[str] = None, expire: int = 0, id: Optional[str] = None):
+    def __init__(self, prefix: Optional[str] = None, expire: int = 1, id: Optional[str] = None):
         """Constructor
 
         Args:
-            prefix (Optional[str], optional): lpck key prefix. Defaults to None.
-            expire (int, optional): time in seconds when lock will expire. Defaults to 0.
+            prefix (Optional[str], optional): lock key prefix. Defaults to None.
+            recursion_prefix (str, optional): recursion lock key prefix. Defaults to 'rec'
+            expire (int, optional): time in seconds when lock will expire. Defaults to 1.
             id (Optional[str], optional): lock id. Defaults to None.
         """
         super().__init__(prefix, expire)
-        self.id = str(uuid4()) if id is None else id
+        self.id = id
+        self.recursion_prefix = f'{prefix}-rec:' if prefix else 'rec:'
+
+        """ Lock the transaction
+        KEYS[1] - lock key
+        KEYS[2] - current lock identifier
+        ARGV[..] - possible recursive lock identifiers
+        Returns 1 if lock is succesfully acquired, 0 otherwise.
+        Returns other lock id if recursive lock detected. 
+        """
+        lock_script_data = RedisScriptData.from_data(
+f"""
+local lock_prefix='{self.prefix or ''}'
+if redis.call('setnx', lock_prefix .. KEYS[1], KEYS[2]) == 1 then
+    if #ARGV > 0 then
+        redis.call('srem', lock_prefix .. KEYS[1], unpack(ARGV))
+    end
+    redis.call('expire', lock_prefix .. KEYS[1], {self.expire})
+    return 1
+else
+    for n = 1, #ARGV do
+        if redis.call('sismember', '{self.recursion_prefix}' .. ARGV[n], KEYS[1]) == 1 then
+            return ARGV[n]
+        end
+    end
+    return 0
+end
+"""
+        )
+        self.lock_script = RedisScript(_RedisScriptField(lock_script_data))
 
     def clone(self) -> '_RedisLockField':
         assert self.expire is not None
         return _RedisLockField(self.prefix, self.expire, self.id)
 
+    def full_recursion_key(self, key: str) -> str:
+        return f'{self.recursion_prefix}{key}'
 
 
-logger = get_logger(__name__)
-
-
-class UnlockScript(RedisScriptData):
-    code = """
-if redis.call("get", KEYS[1]) ~= ARGV[1] then
-    return 1
-else
-    redis.call("del", KEYS[2])
-    redis.call("lpush", KEYS[2], 1)
-    redis.call("del", KEYS[1])
-    return 0
-end
-"""
-
-
-class ResetScript(RedisScriptData):
-    code = """
-redis.call('del', KEYS[2])
-redis.call('lpush', KEYS[2], 1)
-return redis.call('del', KEYS[1])
-"""
-
-
-class RedisLockError(RuntimeError):
+class DeadlockError(RuntimeError):
     pass
 
 
-class RedisLockTimeoutError(RedisLockError):
-    pass
-
-
-class RedisLockInvalidTimeoutError(RedisLockError):
+class LockTimeout(RuntimeError):
     pass
 
 
 class RedisLock(RedisRecordBase[_RedisLockField]):
+    log = get_logger('RedisLock')
     """Redis lock
     """
-    class RealLock():
-        """Redis lock object
-        """
-        def __init__(self, connection: RedisConnection, id: str, prefix: Optional[str], name: str, expire: int):
-            """Constructor
+
+    @property
+    def connection(self) -> RedisConnection:
+        return super().connection
+    
+    @connection.setter
+    def connection(self, connection: RedisConnection):
+        super().connection = connection
+        self._record_info.lock_script.connection = connection
+
+    class Lock():
+        def __init__(self, key: str, conn: RedisConnection, info: _RedisLockField, log: Logger, recursion: set) -> None:
+            """Redis real locking object
 
             Args:
-                connection (RedisConnection): connection to redis
-                id (str): lock id
-                prefix (Optional[str], optional): lock prefix
-                name (str): lock name
-                expire (int): expiration timeout in seconds
+                key (str): lock identificator
+                conn (RedisConnection): current redis connection
+                info (_RedisLockField): lock info data
+                log (Logger): logger
+                recursion (set): Optional set of recursive lock ids
             """
-            super().__init__()
-            self._connection = connection
-            self._id: str = id
-            self._name: str = f'{prefix}:{name}' if prefix else name
-            self._signal: str = f'{prefix}-signal:{name}' if prefix else f'signal:{name}'
-            self._expire: int = expire
-            self._unlock_script = RedisScript(_RedisScriptField(UnlockScript()))
-            self._unlock_script.connection = connection
-            self._reset_script = RedisScript(_RedisScriptField(ResetScript()))
-            self._reset_script.connection = connection
-            self._acquired = False
-            self._timed_out = False
-        
-        async def reset(self):
-            """Forcibly deletes the lock. Use this with care.
-            """
-            await self._reset_script(self._name, self._signal)
-            await self._delete_signal()
-            self._timed_out = False
-            self._acquired = False
+            self.key = key
+            self.rkey = self.info.full_recursion_key(key)
+            self.conn = conn
+            self.info = info
+            self.log = log
+            self.recursion = recursion
+            self.id = str(uuid4()) if self.info.id is None else self.info.id
+            self.lock_timeout_future: Optional[TimerHandle] = None
 
-        async def is_owner(self) -> bool:
-            """Check if owner.
-
-            Returns:
-                bool: returns if the lock is owned.
-            """
-            return self._id == await self.get_owner_id()
-
-        async def get_owner_id(self) -> str:
-            """Get owner of the lock
-
-            Returns:
-                str: owner of the lock
-            """
-            return await self._connection.get(self._name)
-
-        async def acquire(self, blocking: bool = True, timeout: Optional[int] = None) -> bool:
-            """Acquire lock
-
-            Args:
-                blocking (bool, optional): blocking lock or not. Defaults to True.
-                timeout (Optional[int], optional): maximum amount of seconds to block. Defaults to None.
-
-            Raises:
-                RedisLockError: if already acquired by someone else.
-                RedisLockInvalidTimeoutError: if timeout and not blocking or if timeout < 0 or if timeout is greater then expitation
-            Returns:
-                bool: the status of locking
-            """
-            logger.debug(f'Trying to lock {self._name}')
-
-            if await self.is_owner():
-                raise RedisLockError('Already acquired from this Lock instance.')
-
-            if not blocking and timeout is not None:
-                raise RedisLockInvalidTimeoutError('Timeout cannot be used if blocking=False')
-
-            if timeout is not None and timeout <= 0:
-                raise RedisLockInvalidTimeoutError(f'Timeout {timeout} cannot be less than or equal than 0')
-
-            if timeout and self._expire and timeout > self._expire:
-                raise RedisLockInvalidTimeoutError(f'Timeout {timeout} cannot be greater than expire {self._expire}')
-
-            busy = True
-            blpop_timeout = timeout or self._expire or 0
-            self._timed_out = False
-            while busy:
-                busy = not await self._connection.set(self._name, self._id, exist=self._connection.SET_IF_NOT_EXIST, expire=self._expire)
-                if busy:
-                    if self._timed_out:
-                        raise RedisLockTimeoutError(f'Lock is timed out {self._name}')
-                    elif blocking:
-                        self._timed_out = not await self._connection.blpop(self._signal, blpop_timeout) and timeout != 0
+        async def lock(self):
+            first_pass = True
+            try:
+                while True:
+                    result = await self.info.lock_script(
+                        [self.key, self.id],
+                        self.recursion
+                        )
+                    if result == 1:
+                        break
+                    if isinstance(result, str):
+                        raise DeadlockError(f'Mutual lock detected: {result} -> {self.key}')
+                    if first_pass:
+                        first_pass = False
+                        if self.recursion:
+                            # adding recursive locks info
+                            await self.conn.sadd(self.rkey, *self.recursion)
                     else:
-                        logger.debug(f'Failed to get {self._name}')
-                        raise RedisLockError(f'Failed to get {self._name}')
-                else:
-                    self._acquired = True
+                        await sleep(RETRY_LOCK_DELAY)
+            except Exception:
+                if not first_pass:
+                    if self.recursion:
+                        try:
+                            # removing recursive locks info
+                            await self.conn.srem(self.rkey, *self.recursion)
+                        except:
+                            self.log.warning(f'Error clearing recursion keys for {self.rkey}')
+                raise
+            assert self.info.expire is not None
+            self.lock_timeout_future = self.conn.ioloop.call_later(self.info.expire, self._timeout_unlock)
+        
+        async def _timeout_unlock(self):
+            try:
+                self.log.error(f'Unlock for {self.key} failed by timeout {self.info.expire}')
+                await self.unlock()
+            except CancelledError:
+                pass
 
-            logger.debug(f'Locked {self._name}')
-            return True
+        async def unlock(self):
+            try:
+                fkey = self.info.full_key(self.key)
+                value = await self.conn.get(fkey)
+                if value == self.id:
+                    res = await self.conn.delete(fkey)
+                    if res != 1:
+                        self.log.warning(f'Lock for key {self.key} expired before deletion')
+                elif value is None:
+                    self.log.warning(f'Lock for key {self.key} expired before deletion')
+                else:
+                    self.log.warning(f'Lock key ID doesnt match {value} != {self.id}')
+            except Exception as e:
+                self.log.error(f'Error deleting key {self.key}: {e}')
+            if self.lock_timeout_future:
+                self.lock_timeout_future.cancel()
+                self.lock_timeout_future = None
+
 
         async def __aenter__(self):
-            await self.acquire(blocking=True)
+            await self.lock()
 
         async def __aexit__(self, *args):
-            await self.release()
+            await self.unlock()
 
-        async def release(self):
-            """Release the lock.
-
-            Raises:
-                RedisLockError: if already expired or not been locked or error while unlocking
-            """
-            self._acquired = False
-            logger.debug(f'Unlocking {self._name}')
-            if self._timed_out:
-                await self._delete_signal()
-                return
-            error = await self._unlock_script(self._name, self._signal, self._id)
-            if error == 1:
-                raise RedisLockError(f'Lock {self._name} is not acquired')
-            elif error:
-                raise RedisLockError(f'Unsupported error code {error} from UNLOCK script')
-            else:
-                await self._delete_signal()
-
-        async def _delete_signal(self):
-            await self._connection.delete(self._signal)
-    
-    def __init__(self, lock_info: _RedisLockField):
-        """Constructor
+    def lock(self, key: str, recursion=set()) -> Lock:
+        """Get lock with key
 
         Args:
-            lock_info (RedisLockField): redis lock field
-        """
-        super().__init__(lock_info)
-
-    def get_lock(self, name: str) -> RealLock:
-        """Get lock with name
-
-        Args:
-            name (str): name of the lock 
+            key (str): key of the lock 
 
         Returns:
-            RealLock: lock object
+            Lock: lock object
         """
         assert self._record_info.expire is not None
-        return RedisLock.RealLock(self.connection, self._record_info.id, self._record_info.prefix, name, self._record_info.expire)
+        return RedisLock.Lock(key, self.connection, self._record_info, self.log, recursion)
 
 
-def RedisLockField(prefix: Optional[str] = None, expire: int = 0, id: Optional[str] = None) -> RedisLock:
+def RedisLockField(prefix: Optional[str] = None, expire: int = 1, id: Optional[str] = None) -> RedisLock:
     return RedisLock(_RedisLockField(prefix, expire, id))
