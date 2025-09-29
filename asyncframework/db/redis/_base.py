@@ -102,8 +102,7 @@ class RedisRecordBase(Generic[U]):
         else:
             return self._connection
 
-    @connection.setter
-    def connection(self, connection: RedisConnection):
+    def set_connection(self, connection: RedisConnection):
         self._connection = connection
 
     async def delete(self, key: Union[Sequence[str], str]) -> int:

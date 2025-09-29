@@ -80,14 +80,9 @@ class RedisLock(RedisRecordBase[_RedisLockField]):
     """Redis lock
     """
 
-    @property
-    def connection(self) -> RedisConnection:
-        return super().connection
-    
-    @connection.setter
-    def connection(self, connection: RedisConnection):
-        super().connection = connection
-        self._record_info.lock_script.connection = connection
+    def set_connection(self, connection: RedisConnection):
+        super().set_connection(connection)
+        self._record_info.lock_script.set_connection(connection)
 
     class Lock():
         def __init__(self, key: str, conn: RedisConnection, info: _RedisLockField, log: Logger, recursion: set) -> None:

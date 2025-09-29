@@ -31,7 +31,7 @@ class RedisDb(Service):
         await self.__connection.start()
         for value in self.__class__.__dict__.values():
             if isinstance(value, RedisRecordBase):
-                value.connection = self.__connection
+                value.set_connection(self.__connection)
 
     async def __stop__(self):
         await self.__connection.stop()
